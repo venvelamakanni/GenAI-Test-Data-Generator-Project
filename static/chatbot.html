@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test Generator Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .chat-section, .output-section {
+            flex: 1;
+        }
+        .chat-container {
+            height: 500px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: 20%;
+        }
+        .bot-message {
+            background-color: #f5f5f5;
+            margin-right: 20%;
+        }
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .code-block {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin: 10px 0;
+        }
+        .api-details-form {
+            display: none;
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .form-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>API Test Generator Chatbot</h1>
+    
+    <div class="container">
+        <div class="chat-section">
+            <div class="chat-container" id="chat-container">
+                <div class="message bot-message">
+                    Hello! I can help you generate API tests. Please describe the API endpoint you want to test.
+                </div>
+            </div>
+            
+            <div class="input-container">
+                <input type="text" id="user-input" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
+                <button onclick="sendMessage()">Send</button>
+            </div>
+            
+            <div id="api-details-form" class="api-details-form">
+                <h3>API Details</h3>
+                <div class="form-group">
+                    <label for="base-url">Base URL:</label>
+                    <input type="text" id="base-url" placeholder="https://api.example.com">
+                </div>
+                
+                <div class="form-group">
+                    <label for="headers">Headers (JSON):</label>
+                    <textarea id="headers" rows="3" placeholder='{"Content-Type": "application/json", "Authorization": "Bearer token"}'></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="request-body">Example Request Body (JSON):</label>
+                    <textarea id="request-body" rows="5" placeholder='{"key": "value"}'></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="success-status">Success Status Code:</label>
+                    <input type="number" id="success-status" value="200">
+                </div>
+                
+                <div class="form-group">
+                    <label for="example-response">Example Response (JSON):</label>
+                    <textarea id="example-response" rows="5" placeholder='{"id": 1, "name": "example"}'></textarea>
+                </div>
+                
+                <button onclick="submitApiDetails()">Generate Tests</button>
+            </div>
+        </div>
+        
+        <div class="output-section">
+            <h2>Generated Test Code</h2>
+            <div id="test-output"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = '/api/v1/chatbot';
+        let currentIntent = null;
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        function addMessage(message, isUser = false) {
+            const container = document.getElementById('chat-container');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            messageDiv.textContent = message;
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('user-input');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            addMessage(message, true);
+            input.value = '';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to get response');
+                }
+                
+                const data = await response.json();
+                addMessage(data.message);
+                
+                if (data.intent && data.intent.requires_details) {
+                    currentIntent = data.intent;
+                    document.getElementById('api-details-form').style.display = 'block';
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Sorry, there was an error processing your message.');
+            }
+        }
+        
+        async function submitApiDetails() {
+            if (!currentIntent) return;
+            
+            try {
+                const request = {
+                    intent_data: currentIntent,
+                    api_details: {
+                        base_url: document.getElementById('base-url').value,
+                        headers: JSON.parse(document.getElementById('headers').value || '{}'),
+                        request_body: JSON.parse(document.getElementById('request-body').value || 'null'),
+                        success_status_code: parseInt(document.getElementById('success-status').value),
+                        example_response: JSON.parse(document.getElementById('example-response').value || 'null')
+                    }
+                };
+                
+                const response = await fetch(`${API_BASE_URL}/generate-pytest`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(request)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to generate tests');
+                }
+                
+                const data = await response.json();
+                
+                const output = document.getElementById('test-output');
+                output.innerHTML = `
+                    <h3>${data.filename}</h3>
+                    <div class="code-block">${data.code}</div>
+                    <p>Generated ${data.test_count} test cases</p>
+                `;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Sorry, there was an error generating the tests.');
+            }
+        }
+    </script>
+</body>
+</html> 

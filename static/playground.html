@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test Scenario Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .input-section, .output-section {
+            flex: 1;
+        }
+        .endpoint-form {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .form-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .scenario-list {
+            margin-top: 20px;
+        }
+        .scenario-item {
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>API Test Scenario Generator</h1>
+    
+    <div class="container">
+        <div class="input-section">
+            <h2>Input</h2>
+            <div id="endpoints-container">
+                <div class="endpoint-form">
+                    <div class="form-group">
+                        <label for="endpoint">API Endpoint:</label>
+                        <input type="text" id="endpoint" placeholder="/api/v1/users">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="method">HTTP Method:</label>
+                        <select id="method">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="PATCH">PATCH</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="description">Description:</label>
+                        <textarea id="description" rows="3" placeholder="Describe what this endpoint does..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Scenario Types:</label>
+                        <div>
+                            <input type="checkbox" id="positive" checked>
+                            <label for="positive">Positive</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="negative" checked>
+                            <label for="negative">Negative</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="edge-case">
+                            <label for="edge-case">Edge Case</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="performance">
+                            <label for="performance">Performance</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="security">
+                            <label for="security">Security</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="addEndpoint()">Add Another Endpoint</button>
+            <button onclick="generateScenarios()">Generate Scenarios</button>
+        </div>
+        
+        <div class="output-section">
+            <h2>Generated Scenarios</h2>
+            <div id="scenarios-output" class="scenario-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = '/api/v1/playground';
+        
+        function addEndpoint() {
+            const container = document.getElementById('endpoints-container');
+            const newForm = container.children[0].cloneNode(true);
+            
+            // Clear input values
+            newForm.querySelectorAll('input[type="text"], textarea').forEach(input => input.value = '');
+            newForm.querySelector('select').selectedIndex = 0;
+            newForm.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+            
+            container.appendChild(newForm);
+        }
+        
+        function getEndpointData() {
+            const endpoints = [];
+            const forms = document.querySelectorAll('.endpoint-form');
+            
+            forms.forEach(form => {
+                const endpoint = form.querySelector('#endpoint').value;
+                const method = form.querySelector('#method').value;
+                const description = form.querySelector('#description').value;
+                
+                const scenarioTypes = [];
+                if (form.querySelector('#positive').checked) scenarioTypes.push('POSITIVE');
+                if (form.querySelector('#negative').checked) scenarioTypes.push('NEGATIVE');
+                if (form.querySelector('#edge-case').checked) scenarioTypes.push('EDGE_CASE');
+                if (form.querySelector('#performance').checked) scenarioTypes.push('PERFORMANCE');
+                if (form.querySelector('#security').checked) scenarioTypes.push('SECURITY');
+                
+                if (endpoint && method && description) {
+                    endpoints.push({
+                        endpoint,
+                        method,
+                        description,
+                        scenario_types: scenarioTypes
+                    });
+                }
+            });
+            
+            return endpoints;
+        }
+        
+        async function generateScenarios() {
+            const endpoints = getEndpointData();
+            if (endpoints.length === 0) {
+                alert('Please fill in at least one endpoint form');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/generate-scenarios`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ endpoints })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to generate scenarios');
+                }
+                
+                const data = await response.json();
+                displayScenarios(data.results);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('scenarios-output').innerHTML = 
+                    `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        function displayScenarios(results) {
+            const output = document.getElementById('scenarios-output');
+            output.innerHTML = '';
+            
+            results.forEach(result => {
+                const endpointDiv = document.createElement('div');
+                endpointDiv.className = 'scenario-item';
+                endpointDiv.innerHTML = `
+                    <h3>${result.method} ${result.endpoint}</h3>
+                    ${result.scenarios.map(scenario => `
+                        <div class="scenario">
+                            <h4>${scenario.type}</h4>
+                            <p><strong>Description:</strong> ${scenario.description}</p>
+                            <p><strong>Input:</strong> ${scenario.input}</p>
+                            <p><strong>Expected Output:</strong> ${scenario.expected_output}</p>
+                        </div>
+                    `).join('')}
+                `;
+                output.appendChild(endpointDiv);
+            });
+        }
+    </script>
+</body>
+</html> 
